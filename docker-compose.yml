@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: goal-tracker-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-goals}
+      MYSQL_USER: ${MYSQL_USER:-goals}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-goalspassword}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password --sql_mode=STRICT_ALL_TABLES --time_zone='+00:00'
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      timeout: 20s
+      retries: 10
+
+  app:
+    build: .
+    container_name: goal-tracker-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-goals}:${MYSQL_PASSWORD:-goalspassword}@mysql:3306/${MYSQL_DATABASE:-goals}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TZ: ${TZ:-Asia/Bangkok}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 10 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  migration:
+    build: .
+    container_name: goal-tracker-migration
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-goals}:${MYSQL_PASSWORD:-goalspassword}@mysql:3306/${MYSQL_DATABASE:-goals}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Migrations completed!'
+      "
+    profiles:
+      - migration
+
+  seed:
+    build: .
+    container_name: goal-tracker-seed
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-goals}:${MYSQL_PASSWORD:-goalspassword}@mysql:3306/${MYSQL_DATABASE:-goals}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Creating seed data...' &&
+        python -m app.utils.seed &&
+        echo 'Seed data created!'
+      "
+    profiles:
+      - seed
+
+volumes:
+  mysql_data:
+    driver: local
