@@ -17,12 +17,52 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    TypeDecorator,
     func,
 )
 from sqlalchemy.dialects.mysql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+
+class LowercaseStringEnum(TypeDecorator):
+    """Type decorator that converts enum strings to lowercase."""
+    impl = String(20)
+    cache_ok = True
+    
+    def __init__(self, enum_class):
+        super().__init__()
+        self.enum_class = enum_class
+    
+    def process_bind_param(self, value, dialect):
+        """Convert enum to lowercase string when writing to database."""
+        if value is None:
+            return None
+        if isinstance(value, self.enum_class):
+            return value.value
+        if isinstance(value, str):
+            return value.lower()
+        return str(value).lower()
+    
+    def process_result_value(self, value, dialect):
+        """Convert string from database to enum, handling uppercase."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            # Convert to lowercase first
+            value_lower = value.lower()
+            # Try to get enum by value
+            try:
+                return self.enum_class(value_lower)
+            except ValueError:
+                # If not found by value, try to find by name (uppercase to enum)
+                for enum_member in self.enum_class:
+                    if enum_member.name == value.upper():
+                        return enum_member
+                # Fallback: return the lowercase string (will be converted by Pydantic)
+                return value_lower
+        return value
 
 
 class GoalType(str, Enum):
@@ -95,7 +135,7 @@ class Goal(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     emoji: Mapped[str] = mapped_column(String(10), nullable=False)
     goal_type: Mapped[GoalType] = mapped_column(
-        SQLEnum(GoalType, native_enum=False),
+        LowercaseStringEnum(GoalType),  # Automatically converts uppercase to lowercase
         nullable=False
     )
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -103,7 +143,7 @@ class Goal(Base):
     
     # Timeframe
     timeframe_type: Mapped[TimeframeType] = mapped_column(
-        SQLEnum(TimeframeType, native_enum=False),
+        LowercaseStringEnum(TimeframeType),  # Automatically converts uppercase to lowercase
         nullable=False
     )
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -113,11 +153,11 @@ class Goal(Base):
     
     # Settings
     privacy: Mapped[PrivacyLevel] = mapped_column(
-        SQLEnum(PrivacyLevel, native_enum=False),
+        LowercaseStringEnum(PrivacyLevel),  # Automatically converts uppercase to lowercase
         nullable=False
     )
     status: Mapped[GoalStatus] = mapped_column(
-        SQLEnum(GoalStatus, native_enum=False),
+        LowercaseStringEnum(GoalStatus),  # Automatically converts uppercase to lowercase
         nullable=False
     )
     settings_json: Mapped[Optional[dict]] = mapped_column(JSON)
@@ -158,7 +198,7 @@ class GoalMember(Base):
     goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     role: Mapped[MemberRole] = mapped_column(
-        SQLEnum(MemberRole, native_enum=False),
+        LowercaseStringEnum(MemberRole),  # Automatically converts uppercase to lowercase
         nullable=False
     )
     
