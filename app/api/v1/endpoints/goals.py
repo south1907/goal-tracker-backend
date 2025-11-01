@@ -319,7 +319,17 @@ async def delete_goal(
             detail="Access denied",
         )
     
-    await goal_repo.delete(goal)
+    try:
+        await goal_repo.delete(goal)
+    except Exception as e:
+        await db.rollback()
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deleting goal {goal_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete goal: {str(e)}",
+        )
 
 
 @router.get("/{goal_id}/progress", response_model=ProgressStats)

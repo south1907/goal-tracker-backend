@@ -5,11 +5,11 @@ Repository layer for data access patterns.
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from sqlalchemy import and_, desc, func, or_
+from sqlalchemy import and_, delete, desc, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.models import Goal, Log, User
+from app.models import CycleSummary, Goal, GoalMember, Log, User
 from app.schemas import GoalFilters, LogFilters, PaginationParams
 
 
@@ -121,9 +121,32 @@ class GoalRepository:
         return goal
     
     async def delete(self, goal: Goal) -> None:
-        """Delete goal (soft delete by setting status to ended)."""
-        goal.status = "ended"
-        await self.db.commit()
+        """Delete goal permanently (hard delete)."""
+        try:
+            # First delete all related logs
+            await self.db.execute(
+                delete(Log).where(Log.goal_id == goal.id)
+            )
+            
+            # Delete goal members
+            await self.db.execute(
+                delete(GoalMember).where(GoalMember.goal_id == goal.id)
+            )
+            
+            # Delete cycle summaries if they exist
+            await self.db.execute(
+                delete(CycleSummary).where(CycleSummary.goal_id == goal.id)
+            )
+            
+            # Finally delete the goal itself
+            await self.db.execute(
+                delete(Goal).where(Goal.id == goal.id)
+            )
+            
+            await self.db.commit()
+        except Exception as e:
+            await self.db.rollback()
+            raise e
     
     async def get_public_goals(self, pagination: Optional[PaginationParams] = None) -> tuple[List[Goal], int]:
         """Get public goals."""
