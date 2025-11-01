@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint format clean docker-up docker-down migrate seed
+.PHONY: help install dev test lint format clean docker-up docker-down migrate seed clear-data clear-all clear-user
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -49,6 +49,15 @@ migrate: ## Run database migrations
 
 seed: ## Create seed data
 	docker-compose run --rm seed
+
+clear-data: ## Clear all test data (keeps users)
+	poetry run python clear_test_data.py
+
+clear-all: ## Clear all test data including users
+	poetry run python clear_test_data.py --delete-users
+
+clear-user: ## Clear data for specific user (usage: make clear-user EMAIL=user@example.com)
+	poetry run python clear_test_data.py --user $(EMAIL)
 
 setup: install ## Setup development environment
 	cp env.example .env

@@ -94,20 +94,32 @@ class Goal(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     emoji: Mapped[str] = mapped_column(String(10), nullable=False)
-    goal_type: Mapped[GoalType] = mapped_column(SQLEnum(GoalType), nullable=False)
+    goal_type: Mapped[GoalType] = mapped_column(
+        SQLEnum(GoalType, native_enum=False),
+        nullable=False
+    )
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
     target: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     
     # Timeframe
-    timeframe_type: Mapped[TimeframeType] = mapped_column(SQLEnum(TimeframeType), nullable=False)
+    timeframe_type: Mapped[TimeframeType] = mapped_column(
+        SQLEnum(TimeframeType, native_enum=False),
+        nullable=False
+    )
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     rolling_days: Mapped[Optional[int]] = mapped_column(Integer)
     rrule: Mapped[Optional[str]] = mapped_column(Text)  # Recurrence rule
     
     # Settings
-    privacy: Mapped[PrivacyLevel] = mapped_column(SQLEnum(PrivacyLevel), nullable=False)
-    status: Mapped[GoalStatus] = mapped_column(SQLEnum(GoalStatus), nullable=False)
+    privacy: Mapped[PrivacyLevel] = mapped_column(
+        SQLEnum(PrivacyLevel, native_enum=False),
+        nullable=False
+    )
+    status: Mapped[GoalStatus] = mapped_column(
+        SQLEnum(GoalStatus, native_enum=False),
+        nullable=False
+    )
     settings_json: Mapped[Optional[dict]] = mapped_column(JSON)
     
     # Timestamps
@@ -145,7 +157,10 @@ class GoalMember(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    role: Mapped[MemberRole] = mapped_column(SQLEnum(MemberRole), nullable=False)
+    role: Mapped[MemberRole] = mapped_column(
+        SQLEnum(MemberRole, native_enum=False),
+        nullable=False
+    )
     
     # Relationships
     goal: Mapped["Goal"] = relationship("Goal", back_populates="members")

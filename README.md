@@ -79,7 +79,19 @@ A production-grade FastAPI backend for the Goal & Habit Tracker application.
    python -m app.utils.seed
    ```
 
-6. **Start development server**:
+6. **Clear test data** (optional):
+   ```bash
+   # Clear all logs and goals (keeps users)
+   python clear_test_data.py
+   
+   # Clear all data including users
+   python clear_test_data.py --delete-users
+   
+   # Clear data for specific user
+   python clear_test_data.py --user demo@local.test
+   ```
+
+7. **Start development server**:
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
