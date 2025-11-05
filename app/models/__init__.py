@@ -162,6 +162,9 @@ class Goal(Base):
     )
     settings_json: Mapped[Optional[dict]] = mapped_column(JSON)
     
+    # Sharing
+    share_token: Mapped[Optional[str]] = mapped_column(String(36), unique=True, index=True, nullable=True)
+    
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 

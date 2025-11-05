@@ -105,6 +105,7 @@ class Goal(GoalBase):
     id: int
     owner_id: int
     status: str
+    share_token: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

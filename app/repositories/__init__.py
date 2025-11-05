@@ -54,6 +54,10 @@ class GoalRepository:
     
     async def create(self, goal_data: dict) -> Goal:
         """Create a new goal."""
+        import uuid
+        # Generate share token if not provided
+        if "share_token" not in goal_data or not goal_data.get("share_token"):
+            goal_data["share_token"] = str(uuid.uuid4())
         goal = Goal(**goal_data)
         self.db.add(goal)
         await self.db.commit()
@@ -71,6 +75,25 @@ class GoalRepository:
             )
         )
         return result.scalar_one_or_none()
+    
+    async def get_by_share_token(self, share_token: str) -> Optional[Goal]:
+        """Get goal by share token."""
+        result = await self.db.execute(
+            select(Goal)
+            .where(Goal.share_token == share_token)
+        )
+        return result.scalar_one_or_none()
+    
+    async def generate_share_token(self, goal_id: int) -> str:
+        """Generate a new share token for a goal."""
+        import uuid
+        goal = await self.get_by_id(goal_id)
+        if not goal:
+            raise ValueError("Goal not found")
+        goal.share_token = str(uuid.uuid4())
+        await self.db.commit()
+        await self.db.refresh(goal)
+        return goal.share_token
     
     async def get_by_owner(self, owner_id: int, filters: Optional[GoalFilters] = None, 
                           pagination: Optional[PaginationParams] = None) -> tuple[List[Goal], int]:

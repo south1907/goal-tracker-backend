@@ -262,7 +262,60 @@ async def get_goal(
             detail="Access denied",
         )
     
-    return goal
+    return Goal.from_orm(goal)
+
+
+@router.get("/share/{share_token}", response_model=Goal)
+async def get_goal_by_share_token(
+    share_token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a goal by share token (public access, no auth required)."""
+    goal_repo = GoalRepository(db)
+    
+    goal = await goal_repo.get_by_share_token(share_token)
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Goal not found",
+        )
+    
+    # Only allow access to public or unlisted goals
+    if goal.privacy == "private":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This goal is private and cannot be shared",
+        )
+    
+    return Goal.from_orm(goal)
+
+
+@router.post("/{goal_id}/generate-share-token", response_model=dict)
+async def generate_share_token(
+    goal_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate or regenerate share token for a goal."""
+    goal_repo = GoalRepository(db)
+    
+    goal = await goal_repo.get_by_id(goal_id)
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Goal not found",
+        )
+    
+    # Only owner can generate share token
+    if goal.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the goal owner can generate share tokens",
+        )
+    
+    share_token = await goal_repo.generate_share_token(goal_id)
+    
+    return {"share_token": share_token}
 
 
 @router.patch("/{goal_id}", response_model=Goal)
