@@ -24,13 +24,35 @@ def active_window(goal: Goal, now: Optional[datetime] = None) -> Tuple[datetime,
     if now is None:
         now = datetime.utcnow()
     
+    # Ensure now is timezone-aware if goal datetimes are timezone-aware
+    if goal.start_at.tzinfo is not None and now.tzinfo is None:
+        from datetime import timezone
+        now = now.replace(tzinfo=timezone.utc)
+    elif goal.start_at.tzinfo is None and now.tzinfo is not None:
+        now = now.replace(tzinfo=None)
+    
     if goal.timeframe_type == "fixed":
-        return goal.start_at, goal.end_at or now
+        end = goal.end_at if goal.end_at is not None else now
+        # Ensure end is the same timezone as start
+        if goal.start_at.tzinfo is not None and end.tzinfo is None:
+            from datetime import timezone
+            end = end.replace(tzinfo=timezone.utc)
+        elif goal.start_at.tzinfo is None and end.tzinfo is not None:
+            end = end.replace(tzinfo=None)
+        return goal.start_at, end
     
     elif goal.timeframe_type == "rolling":
         days = goal.rolling_days or 30
         end = now
         start = end - timedelta(days=days)
+        # Ensure start has same timezone as goal.start_at
+        if goal.start_at.tzinfo is not None and start.tzinfo is None:
+            from datetime import timezone
+            start = start.replace(tzinfo=timezone.utc)
+            end = end.replace(tzinfo=timezone.utc)
+        elif goal.start_at.tzinfo is None and start.tzinfo is not None:
+            start = start.replace(tzinfo=None)
+            end = end.replace(tzinfo=None)
         return start, end
     
     elif goal.timeframe_type == "recurring":

@@ -290,6 +290,80 @@ async def get_goal_by_share_token(
     return Goal.from_orm(goal)
 
 
+@router.get("/share/{share_token}/logs", response_model=PaginatedResponse)
+async def get_shared_goal_logs(
+    share_token: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get logs for a shared goal (public access, no auth required)."""
+    goal_repo = GoalRepository(db)
+    log_repo = LogRepository(db)
+    
+    goal = await goal_repo.get_by_share_token(share_token)
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Goal not found",
+        )
+    
+    # Only allow access to public or unlisted goals
+    if goal.privacy == "private":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This goal is private and cannot be shared",
+        )
+    
+    # Get logs for the goal
+    pagination = PaginationParams(page=page, page_size=page_size)
+    logs, total = await log_repo.get_by_goal(goal.id, pagination=pagination)
+    
+    log_schemas = [Log.from_orm(log) for log in logs]
+    pages = (total + page_size - 1) // page_size
+    
+    return PaginatedResponse(
+        items=log_schemas,
+        page=page,
+        page_size=page_size,
+        total=total,
+        pages=pages,
+    )
+
+
+@router.get("/share/{share_token}/progress", response_model=ProgressStats)
+async def get_shared_goal_progress(
+    share_token: str,
+    window: str = Query("all", regex="^(all|week|month)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get progress stats for a shared goal (public access, no auth required)."""
+    goal_repo = GoalRepository(db)
+    log_repo = LogRepository(db)
+    
+    goal = await goal_repo.get_by_share_token(share_token)
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Goal not found",
+        )
+    
+    # Only allow access to public or unlisted goals
+    if goal.privacy == "private":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This goal is private and cannot be shared",
+        )
+    
+    # Get all logs for the goal to calculate stats
+    logs, _ = await log_repo.get_by_goal(goal.id, pagination=None)
+    
+    # Calculate progress stats (window parameter is not used in current implementation)
+    stats = calculate_progress_stats(goal, logs)
+    
+    return stats
+
+
 @router.post("/{goal_id}/generate-share-token", response_model=dict)
 async def generate_share_token(
     goal_id: int,
